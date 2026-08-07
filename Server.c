@@ -1,4 +1,3 @@
-#include <asm-generic/socket.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -41,29 +40,52 @@ int send_response(int socket_fd) {
     perror("fopen");
     return -1;
   }
+  if (fseek(html_file, 0, SEEK_END) == -1) {
+    perror("fseek");
+    fclose(html_file);
+    return -1;
+  }
+  long file_size = ftell(html_file);
+  if (file_size == -1) {
+    perror("ftell");
+    fclose(html_file);
+    return -1;
+  }
+  rewind(html_file);
+  char http_header[512];
+  int header_length = snprintf(http_header, sizeof(http_header),
+                               "HTTP/1.1 200 OK\r\n"
+                               "Content-Type: text/html\r\n"
+                               "Content-Length: %ld\r\n"
+                               "Connection: close\r\n"
+                               "\r\n",
+                               file_size);
+
+  if (send_all(socket_fd, http_header, header_length) == -1) {
+    fclose(html_file);
+    return -1;
+  }
+
+  size_t bytes_read;
   char file_buf[1024];
   memset(file_buf, 0, sizeof(file_buf));
-  size_t bytesRead;
-  char *http_header = "HTTP/1.1 200 OK\r\n"
-                      "Content-Type: text/html\r\n"
-                      "Content-Length: 333\r\n"
-                      "Connection: close\r\n"
-                      "\r\n";
-
-  send(socket_fd, http_header, strlen(http_header), 0);
-  while ((bytesRead = fread(file_buf, 1, sizeof(file_buf), html_file)) > 0) {
-    send_all(socket_fd, file_buf, bytesRead);
+  while ((bytes_read = fread(file_buf, 1, sizeof(file_buf), html_file)) > 0) {
+    if (send_all(socket_fd, file_buf, bytes_read) == -1) {
+      fclose(html_file);
+      return -1;
+    }
   }
   fclose(html_file);
   return 0;
 }
 
 int handle_request(int socket_fd) {
-  char recived_buf[2048];
-  memset(recived_buf, 0, sizeof(recived_buf));
-  ssize_t bytesRead = recv(socket_fd, recived_buf, sizeof(recived_buf) - 1, 0);
+  char received_buf[2048];
+  memset(received_buf, 0, sizeof(received_buf));
+  ssize_t bytesRead =
+      recv(socket_fd, received_buf, sizeof(received_buf) - 1, 0);
   printf("---- NEW MASSEGE RECEIVED ----\n%s\n-----------------------\n",
-         recived_buf);
+         received_buf);
 
   send_response(socket_fd);
   close(socket_fd);
@@ -91,13 +113,18 @@ int main(int argc, char **argv) {
   }
 
   int enable = 1;
-  setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &enable,
-             sizeof(enable));
+  if (setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &enable,
+                 sizeof(enable)) == -1) {
+    perror("setsockopt");
+    close(listening_socket);
+    return 1;
+  }
 
-  struct sockaddr_in server_adress = {AF_INET, htons(PORT_NUM),
-                                      htonl(INADDR_ANY)};
-  if (bind(listening_socket, (struct sockaddr *)&server_adress,
-           sizeof(server_adress)) == -1) {
+  struct sockaddr_in server_address = {.sin_family = AF_INET,
+                                       .sin_port = htons(PORT_NUM),
+                                       .sin_addr.s_addr = htonl(INADDR_ANY)};
+  if (bind(listening_socket, (struct sockaddr *)&server_address,
+           sizeof(server_address)) == -1) {
     perror("bind");
     close(listening_socket);
     return -1;
