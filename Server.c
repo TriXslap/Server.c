@@ -30,13 +30,14 @@ int send_all(int socket_fd, const void *buffer, size_t length) {
 int send_response(int socket_fd) {
   char *error_response = "HTTP/1.1 404 Not Found\r\n"
                          "Content-Type: text/plain\r\n"
-                         "Content-Length: 14\r\n"
+                         "Content-Length: 15\r\n"
                          "Connection: close\r\n"
                          "\r\n"
-                         " 404 Not found\r\n";
+                         "404 Not found\r\n";
 
-  FILE *html_file = fopen("./index.html", "r");
+  FILE *html_file = fopen("./index.html", "rb");
   if (html_file == NULL) {
+    send_all(socket_fd, error_response, sizeof(error_response));
     perror("fopen");
     return -1;
   }
@@ -61,6 +62,11 @@ int send_response(int socket_fd) {
                                "\r\n",
                                file_size);
 
+  if (header_length < 0 || (size_t)header_length >= sizeof(http_header)){
+    perror("snprintf");
+    fclose(html_file);
+    return -1;
+  }
   if (send_all(socket_fd, http_header, header_length) == -1) {
     fclose(html_file);
     return -1;
@@ -75,6 +81,11 @@ int send_response(int socket_fd) {
       return -1;
     }
   }
+  if(ferror(html_file)) {
+    perror("fread");
+    fclose(html_file);
+    return -1;
+  }
   fclose(html_file);
   return 0;
 }
@@ -82,9 +93,20 @@ int send_response(int socket_fd) {
 int handle_request(int socket_fd) {
   char received_buf[2048];
   memset(received_buf, 0, sizeof(received_buf));
-  ssize_t bytesRead =
+  ssize_t bytes_read =
+
       recv(socket_fd, received_buf, sizeof(received_buf) - 1, 0);
-  printf("---- NEW MASSEGE RECEIVED ----\n%s\n-----------------------\n",
+  if (bytes_read < 0) {
+    perror("recv");
+    close(socket_fd);
+    return -1;
+  }
+  if (bytes_read == 0){
+    close(socket_fd);
+    return 0;
+  }
+  received_buf[bytes_read] = '\0';
+  printf("---- NEW MESSAGE RECEIVED ----\n%s\n-----------------------\n",
          received_buf);
 
   send_response(socket_fd);
