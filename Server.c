@@ -126,7 +126,7 @@ int server_loop(int socket_fd) {
       return -1;
     }
     if(handle_request(sock) == -1){
-      perror("handle_request");
+      fprintf(stderr, "failed to handle client");
     }
   }
   close(socket_fd);
