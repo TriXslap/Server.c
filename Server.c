@@ -37,7 +37,7 @@ int send_response(int socket_fd) {
 
   FILE *html_file = fopen("./index.html", "rb");
   if (html_file == NULL) {
-    send_all(socket_fd, error_response, sizeof(error_response));
+    send_all(socket_fd, error_response, strlen(error_response));
     perror("fopen");
     return -1;
   }
@@ -63,7 +63,7 @@ int send_response(int socket_fd) {
                                file_size);
 
   if (header_length < 0 || (size_t)header_length >= sizeof(http_header)){
-    perror("snprintf");
+    fprintf(stderr, "failed to build the HTTP header\n");
     fclose(html_file);
     return -1;
   }
@@ -109,7 +109,11 @@ int handle_request(int socket_fd) {
   printf("---- NEW MESSAGE RECEIVED ----\n%s\n-----------------------\n",
          received_buf);
 
-  send_response(socket_fd);
+  if(send_response(socket_fd) == -1){
+    close(socket_fd);
+    return -1;
+  }
+
   close(socket_fd);
   return 0;
 }
@@ -121,7 +125,9 @@ int server_loop(int socket_fd) {
       perror("accept");
       return -1;
     }
-    handle_request(sock);
+    if(handle_request(sock) == -1){
+      perror("handle_request");
+    }
   }
   close(socket_fd);
   return 0;
@@ -129,7 +135,7 @@ int server_loop(int socket_fd) {
 
 int main(int argc, char **argv) {
   int listening_socket = socket(AF_INET, SOCK_STREAM, 0);
-  if (listening_socket <= -1) {
+  if (listening_socket == -1) {
     perror("socket");
     return -1;
   }
@@ -152,8 +158,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  int is_listening;
-  if ((is_listening = listen(listening_socket, BACKLOG)) != 0) {
+  if ((listen(listening_socket, BACKLOG)) != 0) {
     perror("listen");
     close(listening_socket);
     return -1;
