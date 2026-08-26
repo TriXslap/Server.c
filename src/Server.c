@@ -1,3 +1,4 @@
+#include <string.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -8,6 +9,12 @@
 
 #define PORT_NUM 8080
 #define BACKLOG 10
+
+typedef struct HttpHeader {
+  char method[16];
+  char path[256];
+  char version[16];
+} http_header_t;
 
 int send_all(int socket_fd, const void *buffer, size_t length) {
   const char *buf = buffer;
@@ -27,7 +34,7 @@ int send_all(int socket_fd, const void *buffer, size_t length) {
   return 0;
 }
 
-int send_response(int socket_fd) {
+int send_response(int socket_fd, char* file_path) {
   char *error_response = "HTTP/1.1 404 Not Found\r\n"
                          "Content-Type: text/plain\r\n"
                          "Content-Length: 15\r\n"
@@ -35,8 +42,9 @@ int send_response(int socket_fd) {
                          "\r\n"
                          "404 Not found\r\n";
 
-  FILE *html_file = fopen("./index.html", "rb");
+  FILE *html_file = fopen(file_path ,"rb");
   if (html_file == NULL) {
+    printf("file_path: %s\n", file_path);
     send_all(socket_fd, error_response, strlen(error_response));
     perror("fopen");
     return -1;
@@ -90,26 +98,79 @@ int send_response(int socket_fd) {
   return 0;
 }
 
-int handle_request(int socket_fd) {
-  char received_buf[2048];
-  memset(received_buf, 0, sizeof(received_buf));
-  ssize_t bytes_read =
-
-      recv(socket_fd, received_buf, sizeof(received_buf) - 1, 0);
-  if (bytes_read < 0) {
-    perror("recv");
-    close(socket_fd);
+int parse_request(http_header_t* http_header, char* received_buf){
+  printf("we got to the parse request");
+  char* header = strtok(received_buf, "\r\n");
+  char* tok_pointer = strtok(header, " ");
+  if (tok_pointer == NULL || strlen(tok_pointer) >= 16){
+    fprintf(stderr, "failed to find the header method");
     return -1;
   }
-  if (bytes_read == 0){
-    close(socket_fd);
-    return 0;
+  strcpy(http_header->method, tok_pointer);
+  tok_pointer = strtok(NULL, " ");
+  if (tok_pointer == NULL || strlen(tok_pointer) >= 256){
+    fprintf(stderr, "failed to find the path path");
+    return -1;
   }
-  received_buf[bytes_read] = '\0';
-  printf("---- NEW MESSAGE RECEIVED ----\n%s\n-----------------------\n",
-         received_buf);
+  strcpy(http_header->path, tok_pointer);
+  tok_pointer = strtok(NULL, " ");
+  if (tok_pointer == NULL || strlen(tok_pointer) >= 16){
+    fprintf(stderr, "failed to find the version method");
+    return -1;
+  }
+  strcpy(http_header->version, tok_pointer);
 
-  if(send_response(socket_fd) == -1){
+   return 0;
+}
+
+int resolve_request(char* file_path, int file_path_size, http_header_t http_header) {
+  int bytes_read;
+  if(strcmp(http_header.path, "/") == 0){
+    bytes_read = snprintf(file_path, file_path_size, "public/index.html");
+  }
+  else {
+    bytes_read = snprintf(file_path, file_path_size, "public%s", http_header.path);
+  }
+  if(bytes_read < 0){
+      fprintf(stderr, "error while resolving the request");
+  }
+  else if (bytes_read >= file_path_size){ 
+    fprintf(stderr, "the path variable is to small\n");
+    return bytes_read;
+  }
+  return 0;
+}
+int handle_request(int socket_fd) {
+  char received_buf[2048];
+  http_header_t http_header;
+  char file_path[256];
+  memset(received_buf, 0, sizeof(received_buf));
+  ssize_t bytes_read = 0;
+  while(strstr(received_buf, "\r\n\r\n") == NULL && bytes_read < sizeof(received_buf) - 1){
+    ssize_t cur_bytes = recv(socket_fd, received_buf + bytes_read, sizeof(received_buf) - bytes_read - 1, 0);
+    if (cur_bytes < 0) {
+      perror("recv");
+      close(socket_fd);
+      return -1;
+    }
+    if (cur_bytes == 0){
+      close(socket_fd);
+      return 0;
+    }
+    bytes_read = bytes_read + cur_bytes;
+    received_buf[bytes_read] = '\0';
+  }
+
+  printf("ended loop\n bytes_read: %d, sizeof(received_buf): %d\n", bytes_read, sizeof(received_buf));
+  if(strstr(received_buf, "\r\n\r\n") != NULL){
+    printf("were good\n");
+    printf("---- NEW MESSAGE RECEIVED ----\n%s\n-----------------------\n", received_buf);
+    printf("before the parsing function\n");
+    parse_request(&http_header, received_buf);
+    resolve_request(file_path, 256, http_header);
+  }
+
+  if(send_response(socket_fd, file_path) == -1){
     close(socket_fd);
     return -1;
   }
