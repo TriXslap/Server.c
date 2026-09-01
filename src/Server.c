@@ -27,11 +27,19 @@ typedef struct {
   const char *content_type;
 } mime_type_t;
 
-mime_type_t mime_types[] = {{".html", "text/html"},
-                            {".css", "text/css"},
-                            {".js", "text/javascript"},
-                            {".png", "imrage/png"},
-                            {"jpeg", "image/jpeg"}};
+typedef struct {
+  const int status_code;
+  const char *message;
+} error_message_t;
+
+static const error_message_t error_messages[] = {
+    {404, "Not Found"}, {400, "Bad Request"}, {405, "Method Not Allowed"}};
+
+static const mime_type_t mime_types[] = {{".html", "text/html"},
+                                         {".css", "text/css"},
+                                         {".js", "text/javascript"},
+                                         {".png", "image/png"},
+                                         {".jpeg", "image/jpeg"}};
 
 int send_all(int socket_fd, const void *buffer, size_t length) {
   const char *buf = buffer;
@@ -60,7 +68,26 @@ int send_response(http_response_t *http_response, int socket_fd) {
                          "404 Not found\r\n";
 
   if (http_response->status_code != 200) {
-    // return error page with corresponding code
+    char body[64];
+    char message[512];
+    for (int i = 0; i < sizeof(error_messages) / sizeof(error_message_t); i++) {
+      if (http_response->status_code == error_messages[i].status_code) {
+        int body_len =
+            snprintf(body, sizeof(body), "%d %s", error_messages[i].status_code,
+                     error_messages[i].message);
+        int message_len = snprintf(
+            message, sizeof(message),
+            "HTTP/1.1 %d %s\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: %d\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "%d %s\r\n",
+            error_messages[i].status_code, error_messages[i].message, body_len,
+            error_messages[i].status_code, error_messages[i].message);
+      }
+    }
+    return 0;
   }
 
   FILE *html_file = fopen(http_response->resolved_path, "rb");
@@ -76,6 +103,7 @@ int send_response(http_response_t *http_response, int socket_fd) {
     return -1;
   }
   rewind(html_file);
+
   char http_header[512];
   int header_length = snprintf(http_header, sizeof(http_header),
                                "HTTP/1.1 %d OK\r\n"
@@ -234,7 +262,7 @@ int handle_request(int socket_fd) {
       return -1;
     }
 
-    validate_request(&http_response, http_header);
+    http_response.status_code = validate_request(&http_response, http_header);
     resolve_content_type(&http_response);
 
     if (send_response(&http_response, socket_fd) == -1) {
