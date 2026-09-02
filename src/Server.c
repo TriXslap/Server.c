@@ -85,6 +85,9 @@ int send_response(http_response_t *http_response, int socket_fd) {
             "%d %s\r\n",
             error_messages[i].status_code, error_messages[i].message, body_len,
             error_messages[i].status_code, error_messages[i].message);
+        if (send_all(socket_fd, message, message_len) == -1) {
+          return -1;
+        }
       }
     }
     return 0;
