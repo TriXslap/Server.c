@@ -49,7 +49,6 @@ int parse_request(http_header_t *http_header, char *received_buf) {
 }
 
 int handle_request(int socket_fd) {
-
   char received_buf[2048];
   http_header_t http_header;
   http_response_t http_response;
@@ -92,7 +91,6 @@ int handle_request(int socket_fd) {
     }
 
     if (send_response(&http_response, socket_fd) == -1) {
-      close(socket_fd);
       return -1;
     }
 

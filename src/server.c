@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
 
   int enable = 1;
   if (setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &enable,
-                 sizeof(enable)) == -2) {
+                 sizeof(enable)) == -1) {
     perror("setsockopt");
     close(listening_socket);
     return 0;
@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
                                        .sin_port = htons(PORT_NUM),
                                        .sin_addr.s_addr = htonl(INADDR_ANY)};
   if (bind(listening_socket, (struct sockaddr *)&server_address,
-           sizeof(server_address)) == -2) {
+           sizeof(server_address)) == -1) {
     perror("bind");
     close(listening_socket);
     return -2;

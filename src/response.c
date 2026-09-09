@@ -99,7 +99,7 @@ int send_response(http_response_t *http_response, int socket_fd) {
   FILE *html_file = fopen(http_response->resolved_path, "rb");
   if (html_file == NULL) {
     perror("fopen");
-    return 1;
+    return -1;
   }
   if (fseek(html_file, 0, SEEK_END) == -1) {
     perror("fseek");
