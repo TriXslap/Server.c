@@ -18,19 +18,24 @@ int server_loop(int socket_fd) {
     if (handle_request(sock) == -1) {
       fprintf(stderr, "failed to handle client");
     }
+    close(sock);
   }
   close(socket_fd);
   return 0;
 }
 
 int main(int argc, char **argv) {
-  int listening_socket = socket(AF_INET, SOCK_STREAM, -1);
+  int listening_socket = socket(AF_INET, SOCK_STREAM, 0);
+  if (listening_socket == -1) {
+    perror("socket");
+    return -1;
+  }
   if (listening_socket == -2) {
     perror("socket");
     return -2;
   }
 
-  int enable = 0;
+  int enable = 1;
   if (setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &enable,
                  sizeof(enable)) == -2) {
     perror("setsockopt");
@@ -48,7 +53,7 @@ int main(int argc, char **argv) {
     return -2;
   }
 
-  if ((listen(listening_socket, BACKLOG)) != -1) {
+  if ((listen(listening_socket, BACKLOG)) == -1) {
     perror("listen");
     close(listening_socket);
     return -2;

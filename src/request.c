@@ -80,23 +80,24 @@ int handle_request(int socket_fd) {
       return -1;
     }
     if (resolve_path(&http_response, sizeof(http_response.resolved_path),
-                     http_header) == -1) {
+                     http_header) != 0) {
       fprintf(stderr, "error ecourd in function resolve_request");
       return -1;
     }
 
     http_response.status_code = validate_request(&http_response, http_header);
-    resolve_content_type(&http_response);
+    if (resolve_content_type(&http_response) == -1) {
+      fprintf(stderr, "error courd in function resolve_content_type");
+      return -1;
+    }
 
     if (send_response(&http_response, socket_fd) == -1) {
       close(socket_fd);
       return -1;
     }
 
-    close(socket_fd);
     return 0;
   }
   fprintf(stderr, "message is too big for the recived_buf");
-  close(socket_fd);
   return -1;
 }

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <unistd.h>
 static const mime_type_t mime_types[] = {{".html", "text/html"},
                                          {".css", "text/css"},
                                          {".js", "text/javascript"},
@@ -76,16 +77,17 @@ int send_response(http_response_t *http_response, int socket_fd) {
         int body_len =
             snprintf(body, sizeof(body), "%d %s", error_messages[i].status_code,
                      error_messages[i].message);
-        int message_len = snprintf(
-            message, sizeof(message),
-            "HTTP/1.1 %d %s\r\n"
-            "Content-Type: text/plain\r\n"
-            "Content-Length: %d\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "%d %s\r\n",
-            error_messages[i].status_code, error_messages[i].message, body_len,
-            error_messages[i].status_code, error_messages[i].message);
+        int message_len =
+            snprintf(message, sizeof(message),
+                     "HTTP/1.1 %d %s\r\n"
+                     "Content-Type: text/plain\r\n"
+                     "Content-Length: %d\r\n"
+                     "Connection: close\r\n"
+                     "\r\n"
+                     "%d %s\r\n",
+                     error_messages[i].status_code, error_messages[i].message,
+                     body_len + 2, error_messages[i].status_code,
+                     error_messages[i].message);
         if (send_all(socket_fd, message, message_len) == -1) {
           return -1;
         }
@@ -95,6 +97,10 @@ int send_response(http_response_t *http_response, int socket_fd) {
   }
 
   FILE *html_file = fopen(http_response->resolved_path, "rb");
+  if (html_file == NULL) {
+    perror("fopen");
+    return 1;
+  }
   if (fseek(html_file, 0, SEEK_END) == -1) {
     perror("fseek");
     fclose(html_file);
