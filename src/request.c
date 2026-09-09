@@ -60,11 +60,9 @@ int handle_request(int socket_fd) {
                              sizeof(received_buf) - bytes_read - 1, 0);
     if (cur_bytes < 0) {
       perror("recv");
-      close(socket_fd);
       return -1;
     }
     if (cur_bytes == 0) {
-      close(socket_fd);
       return 0;
     }
     bytes_read = bytes_read + cur_bytes;

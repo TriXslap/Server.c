@@ -30,10 +30,6 @@ int main(int argc, char **argv) {
     perror("socket");
     return -1;
   }
-  if (listening_socket == -2) {
-    perror("socket");
-    return -2;
-  }
 
   int enable = 1;
   if (setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &enable,
